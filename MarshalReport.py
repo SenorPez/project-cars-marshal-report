@@ -4,13 +4,15 @@ Provides classes to create a Marshal Report
 import argparse
 import datetime
 from glob import glob
-import os
+import os, os.path
 import socket
 
 from natsort import natsorted
 
 from AdditionalParticipantPacket import AdditionalParticipantPacket
+from ParticipantData import ParticipantData
 from ParticipantPacket import ParticipantPacket
+from TelemetryData import TelemetryData
 from TelemetryDataPacket import TelemetryDataPacket
 
 class MarshalReport():
@@ -22,6 +24,11 @@ class MarshalReport():
         self.save_index = 0
         self.save_directory_name = "packetdata-"+\
             datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+        self.telemetry_data = TelemetryData()
+        self.participant_data = ParticipantData()
+        self.telemetry_data.link_participants(self.participant_data)
+        self.participant_data.link_telemetry(self.telemetry_data)
 
         if telemetry is None:
             #Create a new UDP socket.
@@ -39,9 +46,9 @@ class MarshalReport():
                 while True:
                     data, _ = pcars_socket.recvfrom(65565)
                     if save:
-                        self._save_packet(data)
+                        self.__save_packet(data)
 
-                    self._process_telemetry_packet(data)
+                    self.__process_telemetry_packet(data)
             except KeyboardInterrupt:
                 print("Closing listenter on port {}".format(
                     server_address[1]))
@@ -50,9 +57,9 @@ class MarshalReport():
                     os.rmdir(self.save_directory_name)
 
         else:
-            self._process_telemetry_directory(telemetry)
+            self.__process_telemetry_directory(os.path.realpath(telemetry))
 
-    def _save_packet(self, packet):
+    def __save_packet(self, packet):
         if not os.path.exists(self.save_directory_name):
             os.makedirs(self.save_directory_name)
         packet_file = open("./"+self.save_directory_name+"/pdata"+\
@@ -68,22 +75,43 @@ class MarshalReport():
         """
         return 5606
 
-    def _process_telemetry_directory(self, telemetry_directory):
-        for packet in natsorted(glob(telemetry_directory+'pdata*')):
-            self._process_telemetry_packet(packet)
+    def __process_telemetry_directory(self, telemetry_directory):
+        for packet in natsorted(glob(telemetry_directory+'/pdata*')):
+            self.__process_telemetry_packet(packet)
 
-    @staticmethod
-    def _process_telemetry_packet(packet):
+    def __process_telemetry_packet(self, packet):
         with open(packet, 'rb') as packet_file:
             packet_data = packet_file.read()
+            print(len(packet_data))
             if len(packet_data) == 1347:
-                packet_object = ParticipantPacket(packet_data)
+                self.__dispatch(ParticipantPacket(packet_data))
             elif len(packet_data) == 1028:
-                packet_object = AdditionalParticipantPacket(
-                    packet_data)
+                self.__dispatch(AdditionalParticipantPacket(
+                    packet_data))
             elif len(packet_data) == 1367:
-                packet_object = TelemetryDataPacket(packet_data)
-        print(packet_object)
+                self.__dispatch(TelemetryDataPacket(packet_data))
+
+    def __dispatch(self, packet):
+        if packet.packet_type == 0:
+            self.__telemetry_packet(packet)
+        elif packet.packet_type == 1:
+            self.__participant_packet(packet)
+        elif packet.packet_type == 2:
+            self.__participant_packet(packet)
+
+    def __telemetry_packet(self, packet):
+        """
+        Adds a new telemetry packet into the telemetry data for
+        the race
+        """
+        self.telemetry_data.add(packet)
+
+    def __participant_packet(self, packet):
+        """
+        Adds a new participant packet into the participant data for
+        the race
+        """
+        self.participant_data.add(packet)
 
 if __name__ == "__main__":
     PARSER = argparse.ArgumentParser(
@@ -103,6 +131,8 @@ if __name__ == "__main__":
 
     ARGUMENTS = PARSER.parse_args()
 
-    MarshalReport(
+    marshal_report = MarshalReport(
         telemetry=ARGUMENTS.telemetry,
         save=ARGUMENTS.save_packets)
+
+    import pdb; pdb.set_trace()
