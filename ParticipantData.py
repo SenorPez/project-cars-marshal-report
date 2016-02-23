@@ -12,9 +12,15 @@ class ParticipantData():
         self.new_participants = list()
 
     def link_telemetry(self, telemetry_data):
+        """
+        Links a Telemetry Data object with the Participant Data
+        """
         self.telemetry_data = telemetry_data
 
     def add(self, participant_data):
+        """
+        Adds a participant data packet to the Participant Data
+        """
         self.new_participants.extend([x for x in participant_data.name \
             if len(x)])
 
@@ -32,4 +38,17 @@ class ParticipantData():
                 self.reset_participants()
 
     def reset_participants(self):
+        """
+        Resets the building list of new participants.
+        """
         self.new_participants = list()
+
+    @property
+    def participants(self):
+        """
+        List of current participants.
+        """
+        try:
+            return self.participant_history[-1]
+        except IndexError:
+            return list()

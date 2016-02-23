@@ -4,7 +4,8 @@ Provides classes to create a Marshal Report
 import argparse
 import datetime
 from glob import glob
-import os, os.path
+import os
+#import, os.path
 import socket
 
 from natsort import natsorted
@@ -57,7 +58,8 @@ class MarshalReport():
                     os.rmdir(self.save_directory_name)
 
         else:
-            self.__process_telemetry_directory(os.path.realpath(telemetry))
+            self.__process_telemetry_directory(
+                os.path.realpath(telemetry))
 
     def __save_packet(self, packet):
         if not os.path.exists(self.save_directory_name):
@@ -82,7 +84,6 @@ class MarshalReport():
     def __process_telemetry_packet(self, packet):
         with open(packet, 'rb') as packet_file:
             packet_data = packet_file.read()
-            print(len(packet_data))
             if len(packet_data) == 1347:
                 self.__dispatch(ParticipantPacket(packet_data))
             elif len(packet_data) == 1028:
@@ -131,8 +132,6 @@ if __name__ == "__main__":
 
     ARGUMENTS = PARSER.parse_args()
 
-    marshal_report = MarshalReport(
+    MARSHAL_REPORT = MarshalReport(
         telemetry=ARGUMENTS.telemetry,
         save=ARGUMENTS.save_packets)
-
-    import pdb; pdb.set_trace()
