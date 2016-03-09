@@ -5,6 +5,7 @@ Provides a class for the storing and management of telemetry data
 import datetime
 import json
 
+from ParticipantData import LapData
 from Track import Track
 
 class TelemetryData():
@@ -21,8 +22,12 @@ class TelemetryData():
         self.race_duration = 0
 
         self.starting_grid = list()
+        self.classification = list()
 
         self.race_number = 0
+        self.current_lap = 1
+
+        self.time_race_finish_lap = None
 
         self.__open_json_file()
 
@@ -62,11 +67,20 @@ class TelemetryData():
                 telemetry_data.track_length,
                 verbose=False)
 
-            if telemetry_data.laps_in_event:
+            if telemetry_data.laps_in_event and self.race_mode is None:
                 self.race_mode = "Laps"
                 self.race_duration = telemetry_data.laps_in_event
-            else:
+                for index, _ in enumerate(
+                        telemetry_data.participant_info):
+                    for lap in range(self.race_duration):
+                        self.participant_data.participants[index].\
+                            lap_data[lap] = LapData(lap)
+            elif self.race_mode is None:
                 self.race_mode = "Time"
+                for index, _ in enumerate(
+                        telemetry_data.participant_info):
+                    self.participant_data.participants[index].\
+                        lap_data[1] = LapData(1)
                 time_remaining = divmod(
                     telemetry_data.event_time_remaining, 60)[0]*60
                 self.race_duration = time_remaining \
@@ -74,10 +88,32 @@ class TelemetryData():
                         time_remaining < 100000000 \
                     else self.race_duration
 
+            '''
+            if self.race_mode == "Laps" and \
+                    max([self.laps_completed(x.laps_completed) for x \
+                        in telemetry_data.participant_info]) >= \
+                    self.race_duration:
+                import pdb; pdb.set_trace()
+            elif self.race_mode == "Time" and \
+                    telemetry_data.event_time_remaining == -1 and \
+                    self.time_race_finish_lap is None:
+                self.time_race_finish_lap = max(
+                    [self.laps_completed(x.laps_completed) for x \
+                        in telemetry_data.participant_info])
+                import pdb; pdb.set_trace()
+            elif self.race_mode == "Time" and \
+                    max([self.laps_completed(x.laps_completed) for x \
+                        in telemetry_data.participant_info]) > \
+                    self.time_race_finish_lap:
+                import pdb; pdb.set_trace()
+            '''
+                    
+
             if telemetry_data.current_time == -1 and \
                     sum([self.position(x.race_position) for x \
                         in telemetry_data.participant_info]) != 0 and \
-                    len(self.participant_data.participants):
+                    len(self.participant_data.participants) and \
+                    len(self.starting_grid) == 0:
                 #If the race hasn't started, we have a starting grid.
                 self.starting_grid = sorted(
                     (
@@ -87,6 +123,43 @@ class TelemetryData():
                         for index, x in enumerate(
                             telemetry_data.participant_info) \
                         if index < self.participants))
+                self.classification = self.starting_grid
+            elif telemetry_data.current_time != -1 and \
+                    len(self.participant_data.participants):
+                self.classification = sorted(
+                    (
+                        (
+                            self.position(x.race_position),
+                            self.participant_data.participants[index]) \
+                        for index, x in enumerate(
+                            telemetry_data.participant_info) \
+                        if index < self.participants))
+
+                for index, x in enumerate(
+                        telemetry_data.participant_info):
+                    if self.sector(x.sector) == 1 and \
+                            self.last_sector_time(
+                                x.last_sector_time) != -123.0:
+                        self.participant_data.participants[index].\
+                            lap_data[self.current_lap-1].\
+                            add_sector_time(
+                                3, 
+                                self.last_sector_time(
+                                    x.last_sector_time))
+                    elif self.sector(x.sector) == 2:
+                        self.participant_data.participants[index].\
+                            lap_data[self.current_lap].\
+                            add_sector_time(
+                                1, 
+                                self.last_sector_time(
+                                    x.last_sector_time))
+                    elif self.sector(x.sector) == 3:
+                        self.participant_data.participants[index].\
+                            lap_data[self.current_lap].\
+                            add_sector_time(
+                                2, 
+                                self.last_sector_time(
+                                    x.last_sector_time))
 
             self.__write_json()
         elif self.track is not None:
@@ -128,6 +201,8 @@ class TelemetryData():
         values['race_duration'] = self.race_duration
         values['starting_grid'] = \
             [name for index, name in self.starting_grid]
+        values['classification'] = \
+            [name for index, name in self.classification]
 
         return values
 
@@ -151,3 +226,24 @@ class TelemetryData():
         Extract and return the Race State
         """
         return race_state & int('00000111', 2)
+
+    @staticmethod
+    def laps_completed(laps_completed):
+        """
+        Extract and return the number of laps completed.
+        """
+        return laps_completed & int('01111111', 2)
+
+    @staticmethod
+    def sector(sector):
+        """
+        Extract and return the current sector number.
+        """
+        return sector & int('00000111', 2)
+
+    @staticmethod
+    def invalid_lap(laps_completed):
+        """
+        Extract and return if the current lap is valid.
+        """
+        return bool(laps_completed & int('10000000', 2))
