@@ -16,13 +16,21 @@ class ParticipantInfo():
             for _ in range(3):
                 self.world_position.append(int(unpacked_data.popleft()))
             self.current_lap_distance = int(unpacked_data.popleft())
-            self.race_position = int(unpacked_data.popleft())
+            self._race_position = int(unpacked_data.popleft())
             self.laps_completed = int(unpacked_data.popleft())
             self.current_lap = int(unpacked_data.popleft())
             self.sector = int(unpacked_data.popleft())
             self.last_sector_time = float(unpacked_data.popleft())
         except ValueError:
             raise
+
+    @property
+    def is_active(self):
+        return self._race_position & int('10000000', 2)
+
+    @property
+    def race_position(self):
+        return self._race_position & int('01111111', 2)
 
 class TelemetryDataPacket(Packet):
     """

@@ -5,7 +5,6 @@ Provides a class for the storing and management of telemetry data
 import datetime
 import json
 
-from ParticipantData import LapData
 from Track import Track
 
 class TelemetryData():

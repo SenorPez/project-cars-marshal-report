@@ -5,7 +5,6 @@ import argparse
 import datetime
 from glob import glob
 import os
-#import, os.path
 import socket
 
 from natsort import natsorted
@@ -26,10 +25,7 @@ class MarshalReport():
         self.save_directory_name = "packetdata-"+\
             datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-        self.telemetry_data = TelemetryData()
         self.participant_data = ParticipantData()
-        self.telemetry_data.link_participants(self.participant_data)
-        self.participant_data.link_telemetry(self.telemetry_data)
 
         if telemetry is None:
             #Create a new UDP socket.
@@ -93,12 +89,15 @@ class MarshalReport():
                 self.__dispatch(TelemetryDataPacket(packet_data))
 
     def __dispatch(self, packet):
+        self.participant_data.add(packet)
+        '''
         if packet.packet_type == 0:
             self.__telemetry_packet(packet)
         elif packet.packet_type == 1:
             self.__participant_packet(packet)
         elif packet.packet_type == 2:
             self.__participant_packet(packet)
+        '''
 
     def __telemetry_packet(self, packet):
         """
