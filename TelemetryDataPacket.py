@@ -19,7 +19,7 @@ class ParticipantInfo():
             self._race_position = int(unpacked_data.popleft())
             self.laps_completed = int(unpacked_data.popleft())
             self.current_lap = int(unpacked_data.popleft())
-            self.sector = int(unpacked_data.popleft())
+            self._sector = int(unpacked_data.popleft())
             self.last_sector_time = float(unpacked_data.popleft())
         except ValueError:
             raise
@@ -31,6 +31,10 @@ class ParticipantInfo():
     @property
     def race_position(self):
         return self._race_position & int('01111111', 2)
+
+    @property
+    def sector(self):
+        return self._sector & int('00000111', 2)
 
 class TelemetryDataPacket(Packet):
     """
@@ -249,6 +253,10 @@ class TelemetryDataPacket(Packet):
             self.d_pad = int(unpacked_data.popleft())
         except ValueError:
             raise
+
+    @property
+    def leader_current_lap(self):
+        return max([x.current_lap for x in self.participant_info])
 
     @property
     def packet_type(self):

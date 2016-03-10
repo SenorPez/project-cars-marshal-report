@@ -12,6 +12,32 @@ class Participant():
     """
     def __init__(self):
         self.name = None
+        self.sector_times = list()
+
+        self.__last_sector = None
+
+    def add_sector_time(self, time, current_sector=None):
+        """
+        Adds a sector time to the list, if it's unique.
+        Note that "current sector" will usually be one sector
+        'ahead' due to the way it's presented in the telemetry.
+        When the "Sector 1" time is available, current_sector
+        will be 2
+        """
+        try:
+            if time != self.sector_times[-1] and \
+                    (current_sector != self.__last_sector or \
+                    current_sector is None):
+                self.sector_times.append(time)
+        except IndexError:
+            self.sector_times.append(time)
+
+    def merge(self, incoming):
+        """
+        Merges another participant with this one.
+        """
+        for sector_time in incoming.sector_times:
+            self.add_sector_time(sector_time)
 
 class ParticipantData():
     """
@@ -20,11 +46,13 @@ class ParticipantData():
     def __init__(self):
         self.num_participants = None
         self._participants_history = list()
-        self.participants = list()
+        self._participants = list()
 
         self.__participant_change = False
 
-        self.__temporary_participants = list()
+        self._temporary_participants = list()
+
+        self.current_lap = 1
 
     def add(self, packet):
         """
@@ -49,25 +77,74 @@ class ParticipantData():
                 if participant_info.is_active][:self.num_participants]
         elif self.num_participants != packet.num_participants and \
                 packet.num_participants != -1:  
+            self._participants_history.append(
+                deepcopy(self.participants))
+
             if self.num_participants > packet.num_participants:
                 #If someone dropped out, we need to set the flag to
                 #transfer the data once we get names for everyone in
                 #the new configuration.
-                self.num_participants = packet.num_participants
-                self._participants_history.append(
-                    deepcopy(self.participants))
-                self.__temporary_participants = [Participant() \
-                    for participant_info in packet.participant_info \
-                    if participant_info.is_active][:self.num_participants]
                 self.__participant_change = True
-            else:
-                self.num_participants = packet.num_participants
-                self._participants_history.append(
-                    deepcopy(self.participants))
                 self.participants = [Participant() \
                     for participant_info in packet.participant_info \
-                    if participant_info.is_active][:self.num_participants]
+                    if participant_info.is_active][:packet.num_participants]
+            self.num_participants = packet.num_participants
 
+        self.current_lap = packet.leader_current_lap
+        for index, participant in enumerate(
+                packet.participant_info[:self.num_participants]):
+            if participant.last_sector_time != -123.0:
+                self.participants[index].add_sector_time(
+                    participant.last_sector_time,
+                    participant.sector)
+
+    @property
+    def json_output(self):
+        laps = list()
+        for i in range(self.current_lap):
+            lap_data = dict()
+            lap_data['lap_number'] = i
+            position_data = list()
+            for position, participant in enumerate(self.participants_position):
+                position_data.append({'position': position,
+                    'name': participant.name})
+            lap_data['lap_data'] = position_data
+            laps.append(lap_data)
+
+        return laps
+
+    @property
+    def participants_position(self):
+        return sorted([x for x in self.participants], key=lambda x: x.name)
+
+    @property
+    def participants(self):
+        if self.__participant_change:
+            return self._temporary_participants
+        else:
+            return self._participants
+
+    @participants.setter
+    def participants(self, value):
+        if self.__participant_change:
+            self._temporary_participants = value
+        else:
+            self._participants = value
+
+    def combine_data(self, changed):
+        combined_participants = list()
+        for index, participant in enumerate(
+                self.participants[:self.num_participants]):
+            if index == changed:
+                target_participant = self._participants_history[-1][-1]
+            else:
+                target_participant = self._participants_history[-1][index]
+
+            target_participant.merge(participant)
+            combined_participants.append(target_participant)
+
+        self.__participant_change = False
+        self.participants = combined_participants
 
     def __participant_packet(self, packet):
         if self.num_participants is None:
@@ -85,25 +162,25 @@ class ParticipantData():
         #Test to see if we have names for everyone, and we have a pending
         #change.
         if self.__participant_change and \
-                all([x.name for x in self.__temporary_participants]):
+                all([x.name for x in self.participants]):
             #Find where the participants differ.
             previous_names = [x.name for x \
-                in self.participants_history[-1]]
+                in self._participants_history[-1]]
             current_names = [x.name for x \
-                in self.__temporary_participants]
+                in self.participants]
             try:
                 changed = nonzero([x != y for x, y in zip(
                     previous_names,
                     current_names)])[0]
                 #Replace the data of the dropped out person with the
                 #participant that was in the last index position.
-                self.participants[changed] = \
-                    self.participants_history[-1]
+                self.combine_data(changed)
                     
             except TypeError:
                 #The person in the last index is the one who dropped out,
                 #so we don't need to do anything.
-                pass
+                raise
+
             self.__participant_change = False
 
     @property
