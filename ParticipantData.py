@@ -12,11 +12,17 @@ class Participant():
     """
     def __init__(self):
         self.name = None
+        self.race_positions = list()
         self.sector_times = list()
 
         self.__last_sector = None
+        self.__add_position = False
+        self.__add_starting_position = True
 
-    def add_sector_time(self, time, current_sector=None):
+    def add_race_position(self, lap_number, race_position):
+        self.race_position = race_position
+
+    def add_sector_time(self, time, current_sector, race_position, invalid):
         """
         Adds a sector time to the list, if it's unique.
         Note that "current sector" will usually be one sector
@@ -24,18 +30,95 @@ class Participant():
         When the "Sector 1" time is available, current_sector
         will be 2
         """
+                        
+
+        #time = 0.00 if time == -123.0 else time
+        if race_position != 0:
+            if time == -123.0 and len(self.sector_times) == 0:
+                self.sector_times.append({
+                    'time': 0.00,
+                    'position': race_position,
+                    'sector': "Start",
+                    'invalid': None})
+                if self.name == "Scott Winstead":
+                    #import pdb; pdb.set_trace()
+                    pass
+                test = 0
+            elif time == -123.0 and len(self.sector_times) == 1:
+                pass
+            elif time == -123.0 and len(self.sector_times) > 1:
+                self.sector_times = list()
+                self.__last_sector = None
+                self.sector_times.append({
+                    'time': 0.00,
+                    'position': race_position,
+                    'sector': "Start",
+                    'invalid': None})
+                if self.name == "Scott Winstead":
+                    #import pdb; pdb.set_trace()
+                    pass
+                test = 1
+            else:
+                if current_sector != self.__last_sector:
+                    self.__last_sector = current_sector
+                    current_sector = 3 if current_sector == 1 else current_sector-1
+                    self.sector_times.append({
+                        'time': time,
+                        'position': race_position,
+                        'sector': current_sector,
+                        'invalid': bool(invalid)})
+                    if self.name == "Scott Winstead":
+                        #import pdb; pdb.set_trace()
+                        pass
+                    test = 2
+
+                '''
+                if time != self.sector_times[-1]['time'] and \
+                        (current_sector != self.__last_sector or \
+                        self.__last_sector is None):
+                    self.sector_times.append({
+                        'time': time,
+                        'position': race_position})
+                    self.__last_sector = current_sector
+                '''
+
+    def position_by_lap(self, lap):
         try:
-            if time != self.sector_times[-1] and \
-                    (current_sector != self.__last_sector or \
-                    current_sector is None):
-                self.sector_times.append(time)
+            if lap == 0:
+                return self.sector_times[0]['position']
+            else:
+                index = lap*3
+                return self.sector_times[index]['position']
         except IndexError:
-            self.sector_times.append(time)
+            return None
+
+    def sector_by_lap(self, lap, sector):
+        try:
+            if lap == 0:
+                return None
+            else:
+                index = sector+(lap-1)*3
+                return self.sector_times[index]['time']
+        except IndexError:
+            return None
+
+    def invalid_lap(self, lap):
+        try:
+            if lap == 0:
+                return None
+            else:
+                index = 1+(lap-1)*3
+                data = [x['invalid'] for x in self.sector_times[index:index+3]]
+                return all(data)
+        except IndexError:
+            return None
 
     def merge(self, incoming):
+        raise Exception("Fix this shit")
         """
         Merges another participant with this one.
         """
+        self.race_position = incoming.race_position
         for sector_time in incoming.sector_times:
             self.add_sector_time(sector_time)
 
@@ -69,6 +152,7 @@ class ParticipantData():
                 packet.packet_type))
 
     def __telemetry_packet(self, packet):
+        self.laps_in_event = packet.laps_in_event
         if self.num_participants is None and \
                 packet.num_participants != -1:
             self.num_participants = packet.num_participants
@@ -93,29 +177,99 @@ class ParticipantData():
         self.current_lap = packet.leader_current_lap
         for index, participant in enumerate(
                 packet.participant_info[:self.num_participants]):
-            if participant.last_sector_time != -123.0:
-                self.participants[index].add_sector_time(
-                    participant.last_sector_time,
-                    participant.sector)
+            self.participants[index].add_sector_time(
+                participant.last_sector_time,
+                participant.sector,
+                participant.race_position,
+                participant.invalid_lap)
 
     @property
     def json_output(self):
-        laps = list()
-        for i in range(self.current_lap):
+        output = dict()
+        output['laps'] = list()
+        output['drivers'] = list()
+
+        for i in range(min((
+                self.laps_in_event,
+                self.current_lap))):
             lap_data = dict()
             lap_data['lap_number'] = i
-            position_data = list()
-            for position, participant in enumerate(self.participants_position):
-                position_data.append({'position': position,
-                    'name': participant.name})
-            lap_data['lap_data'] = position_data
-            laps.append(lap_data)
 
-        return laps
+            driver_data = dict()
 
-    @property
-    def participants_position(self):
-        return sorted([x for x in self.participants], key=lambda x: x.name)
+            positions = list()
+
+            best_sector_1 = None
+            best_sector_2 = None
+            best_sector_3 = None
+            best_lap_time = None
+
+            for participant in self.participants_by_position(i):
+                if not any([value for key, value in driver_data.items() \
+                        if key == 'name' and \
+                            value == participant.name]):
+                    driver_data['name'] = participant.name
+
+                try:
+                    sector_1 = participant.sector_by_lap(i, 1)
+                    if best_sector_1 is None or \
+                            sector_1 < best_sector_1:
+                        best_sector_1 = sector_1
+                except TypeError:
+                    sector_1 = None
+
+                try:
+                    sector_2 = participant.sector_by_lap(i, 2)
+                    if best_sector_2 is None or \
+                            sector_2 < best_sector_2:
+                        best_sector_2 = sector_2
+                except TypeError:
+                    sector_2 = None
+
+                try:
+                    sector_3 = participant.sector_by_lap(i, 3)
+                    if best_sector_3 is None or \
+                            sector_3 < best_sector_3:
+                        best_sector_3 = sector_3
+                except TypeError:
+                    sector_3 = None
+
+                try:
+                    lap_time = sum((sector_1, sector_2, sector_3))
+                    if best_lap_time is None or \
+                            sum((sector_1, sector_2, sector_3)) < best_lap_time:
+                        best_lap_time = sum((sector_1, sector_2, sector_3))
+                except TypeError:
+                    lap_time = None
+
+                positions.append({
+                    'name': participant.name,
+                    'position': participant.position_by_lap(i),
+                    'sector_1': sector_1,
+                    'sector_2': sector_2,
+                    'sector_3': sector_3,
+                    'lap_time': lap_time,
+                    'invalid_lap': participant.invalid_lap(i)})
+                
+                output['drivers'].append(driver_data)
+
+            lap_data['positions'] = positions
+            lap_data['best_sector_1'] = best_sector_1
+            lap_data['best_sector_2'] = best_sector_2
+            lap_data['best_sector_3'] = best_sector_3
+            lap_data['best_lap_time'] = best_lap_time
+            output['laps'].append(lap_data)
+
+        return output
+
+    def participants_by_position(self, lap):
+        active = sorted(
+            [x for x in self.participants \
+                if x.position_by_lap(lap) is not None],
+            key=lambda x: x.position_by_lap(lap))
+        inactive = [x for x in self.participants \
+            if x.position_by_lap(lap) is None]
+        return active+inactive
 
     @property
     def participants(self):
@@ -247,7 +401,7 @@ class LapData():
         self.lap_time = None
         self.valid_lap_time = None
 
-    def add_sector_time(self, sector, time):
+    def add_sector_time(self, sector, time, position):
         if sector == 1:
             self.s1_time = time
         elif sector == 2:

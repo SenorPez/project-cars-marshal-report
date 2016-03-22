@@ -17,7 +17,7 @@ class ParticipantInfo():
                 self.world_position.append(int(unpacked_data.popleft()))
             self.current_lap_distance = int(unpacked_data.popleft())
             self._race_position = int(unpacked_data.popleft())
-            self.laps_completed = int(unpacked_data.popleft())
+            self._laps_completed = int(unpacked_data.popleft())
             self.current_lap = int(unpacked_data.popleft())
             self._sector = int(unpacked_data.popleft())
             self.last_sector_time = float(unpacked_data.popleft())
@@ -31,6 +31,14 @@ class ParticipantInfo():
     @property
     def race_position(self):
         return self._race_position & int('01111111', 2)
+
+    @property
+    def invalid_lap(self):
+        return self._laps_completed & int('10000000', 2)
+
+    @property
+    def laps_completed(self):
+        return self._laps_completed & int('01111111', 2)
 
     @property
     def sector(self):
