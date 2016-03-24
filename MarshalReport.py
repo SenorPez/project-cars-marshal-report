@@ -137,4 +137,6 @@ if __name__ == "__main__":
     fp = open('output.json', 'w')
     import json
     json.dump(MARSHAL_REPORT.participant_data.json_output,
-        fp, ensure_ascii=True)
+        fp,
+        ensure_ascii=True,
+        sort_keys=True)

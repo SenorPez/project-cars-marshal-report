@@ -31,7 +31,6 @@ class Participant():
         will be 2
         """
                         
-
         #time = 0.00 if time == -123.0 else time
         if race_position != 0:
             if time == -123.0 and len(self.sector_times) == 0:
@@ -40,10 +39,6 @@ class Participant():
                     'position': race_position,
                     'sector': "Start",
                     'invalid': None})
-                if self.name == "Scott Winstead":
-                    #import pdb; pdb.set_trace()
-                    pass
-                test = 0
             elif time == -123.0 and len(self.sector_times) == 1:
                 pass
             elif time == -123.0 and len(self.sector_times) > 1:
@@ -54,10 +49,6 @@ class Participant():
                     'position': race_position,
                     'sector': "Start",
                     'invalid': None})
-                if self.name == "Scott Winstead":
-                    #import pdb; pdb.set_trace()
-                    pass
-                test = 1
             else:
                 if current_sector != self.__last_sector:
                     self.__last_sector = current_sector
@@ -67,10 +58,6 @@ class Participant():
                         'position': race_position,
                         'sector': current_sector,
                         'invalid': bool(invalid)})
-                    if self.name == "Scott Winstead":
-                        #import pdb; pdb.set_trace()
-                        pass
-                    test = 2
 
                 '''
                 if time != self.sector_times[-1]['time'] and \
@@ -109,7 +96,7 @@ class Participant():
             else:
                 index = 1+(lap-1)*3
                 data = [x['invalid'] for x in self.sector_times[index:index+3]]
-                return all(data)
+                return any(data)
         except IndexError:
             return None
 
@@ -175,13 +162,17 @@ class ParticipantData():
             self.num_participants = packet.num_participants
 
         self.current_lap = packet.leader_current_lap
-        for index, participant in enumerate(
-                packet.participant_info[:self.num_participants]):
-            self.participants[index].add_sector_time(
-                participant.last_sector_time,
-                participant.sector,
-                participant.race_position,
-                participant.invalid_lap)
+        try:
+            for index, participant in enumerate(
+                    packet.participant_info[:self.num_participants]):
+                self.participants[index].add_sector_time(
+                    participant.last_sector_time,
+                    participant.sector,
+                    participant.race_position,
+                    participant.invalid_lap)
+        except IndexError:
+            #TODO: Create temporary storage?
+            pass
 
     @property
     def json_output(self):
@@ -191,25 +182,17 @@ class ParticipantData():
 
         for i in range(min((
                 self.laps_in_event,
-                self.current_lap))):
+                self.current_lap))+1):
             lap_data = dict()
             lap_data['lap_number'] = i
-
-            driver_data = dict()
-
-            positions = list()
 
             best_sector_1 = None
             best_sector_2 = None
             best_sector_3 = None
             best_lap_time = None
+            lap_data['positions'] = list()
 
             for participant in self.participants_by_position(i):
-                if not any([value for key, value in driver_data.items() \
-                        if key == 'name' and \
-                            value == participant.name]):
-                    driver_data['name'] = participant.name
-
                 try:
                     sector_1 = participant.sector_by_lap(i, 1)
                     if best_sector_1 is None or \
@@ -242,7 +225,7 @@ class ParticipantData():
                 except TypeError:
                     lap_time = None
 
-                positions.append({
+                lap_data['positions'].append({
                     'name': participant.name,
                     'position': participant.position_by_lap(i),
                     'sector_1': sector_1,
@@ -251,16 +234,101 @@ class ParticipantData():
                     'lap_time': lap_time,
                     'invalid_lap': participant.invalid_lap(i)})
                 
-                output['drivers'].append(driver_data)
-
-            lap_data['positions'] = positions
+            lap_data['positions'] = sorted(
+                [x for x in lap_data['positions'] \
+                    if x['position'] is not None],
+                key=lambda x: x['position'])
             lap_data['best_sector_1'] = best_sector_1
             lap_data['best_sector_2'] = best_sector_2
             lap_data['best_sector_3'] = best_sector_3
             lap_data['best_lap_time'] = best_lap_time
+
             output['laps'].append(lap_data)
 
+        for participant in self.participants_by_name():
+            participant_data = dict()
+            participant_data['driver'] = participant.name
+
+            try:
+                participant_data['best_sector_1'] = min(
+                    [x['time'] for x in participant.sector_times \
+                        if x['sector'] == 1 and \
+                        not x['invalid']])
+            except ValueError:
+                participant_data['best_sector_1'] = None
+
+            try:
+                participant_data['best_sector_2'] = min(
+                    [x['time'] for x in participant.sector_times \
+                        if x['sector'] == 2 and \
+                        not x['invalid']])
+            except ValueError:
+                participant_data['best_sector_2'] = None
+
+            try:
+                participant_data['best_sector_3'] = min(
+                    [x['time'] for x in participant.sector_times \
+                        if x['sector'] == 3 and \
+                        not x['invalid']])
+            except ValueError:
+                participant_data['best_sector_3'] = None
+
+            try:
+                data = [None if x['invalid'] else x['time'] \
+                    for x in participant.sector_times \
+                    if x['sector'] == 1 or \
+                    x['sector'] == 2 or \
+                    x['sector'] == 3]
+                data = [sum(y) for y in \
+                    [list(x) for x in zip(
+                        *[iter(data)]*3)] \
+                    if y.count(None) == 0]
+                participant_data['best_lap_time'] = min(data)
+            except ValueError:
+                participant_data['best_lap_time'] = None
+
+            participant_data['laps'] = list()
+            for i in range(min((
+                    self.laps_in_event,
+                    self.current_lap))+1):
+                lap_data = dict()
+                lap_data['lap_number'] = i
+
+                sector_1 = participant.sector_by_lap(i, 1)
+                lap_data['sector_1'] = sector_1
+
+                sector_2 = participant.sector_by_lap(i, 2)
+                lap_data['sector_2'] = sector_2
+
+                sector_3 = participant.sector_by_lap(i, 3)
+                lap_data['sector_3'] = sector_3
+
+                try:
+                    lap_data['lap_time'] = sum((
+                        sector_1,
+                        sector_2,
+                        sector_3))
+                except TypeError:
+                    lap_data['lap_time'] = None
+
+                lap_data['invalid_lap'] = \
+                    participant.invalid_lap(i)
+                lap_data['position'] = \
+                    participant.position_by_lap(i)
+
+                participant_data['laps'].append(lap_data)
+
+            participant_data['laps'] = sorted(
+                participant_data['laps'],
+                key=lambda x: x['lap_number'])
+            output['drivers'].append(participant_data)
+
         return output
+
+    def participants_by_name(self):
+        return sorted(
+            self.participants,
+            key=lambda x: x.name.lower())
 
     def participants_by_position(self, lap):
         active = sorted(
