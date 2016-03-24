@@ -31,7 +31,6 @@ class Participant():
         will be 2
         """
                         
-        #time = 0.00 if time == -123.0 else time
         if race_position != 0:
             if time == -123.0 and len(self.sector_times) == 0:
                 self.sector_times.append({
@@ -52,22 +51,14 @@ class Participant():
             else:
                 if current_sector != self.__last_sector:
                     self.__last_sector = current_sector
+                    if current_sector == 1 or current_sector == "Start":
+                        current_sector = 3
                     current_sector = 3 if current_sector == 1 else current_sector-1
                     self.sector_times.append({
                         'time': time,
                         'position': race_position,
                         'sector': current_sector,
                         'invalid': bool(invalid)})
-
-                '''
-                if time != self.sector_times[-1]['time'] and \
-                        (current_sector != self.__last_sector or \
-                        self.__last_sector is None):
-                    self.sector_times.append({
-                        'time': time,
-                        'position': race_position})
-                    self.__last_sector = current_sector
-                '''
 
     def position_by_lap(self, lap):
         try:
@@ -101,13 +92,23 @@ class Participant():
             return None
 
     def merge(self, incoming):
-        raise Exception("Fix this shit")
         """
         Merges another participant with this one.
         """
-        self.race_position = incoming.race_position
+
         for sector_time in incoming.sector_times:
-            self.add_sector_time(sector_time)
+            self.sector_times.append(sector_time)
+
+            if sector_time['sector'] == "Start":
+                self.__last_sector = None
+            else:
+                self.__last_sector = sector_time['sector']%3+1
+
+            self.add_sector_time(
+                sector_time['time'],
+                sector_time['sector'],
+                sector_time['position'],
+                sector_time['invalid'])
 
 class ParticipantData():
     """
