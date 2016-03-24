@@ -33,6 +33,10 @@ class MarshalReport():
             pcars_socket = socket.socket(
                 socket.AF_INET,
                 socket.SOCK_DGRAM)
+            pcars_socket.setsockopt(
+                socket.SOL_SOCKET,
+                socket.SO_REUSEADDR,
+                1)
 
             #Bind the socket to the port
             server_address = ("", self.udp_port)
