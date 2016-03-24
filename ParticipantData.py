@@ -327,7 +327,8 @@ class ParticipantData():
 
     def participants_by_name(self):
         return sorted(
-            self.participants,
+            [x for x in self.participants \
+                if x.name is not None],
             key=lambda x: x.name.lower())
 
     def participants_by_position(self, lap):

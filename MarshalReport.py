@@ -4,6 +4,7 @@ Provides classes to create a Marshal Report
 import argparse
 import datetime
 from glob import glob
+import json
 import os
 import socket
 
@@ -75,18 +76,25 @@ class MarshalReport():
 
     def __process_telemetry_directory(self, telemetry_directory):
         for packet in natsorted(glob(telemetry_directory+'/pdata*')):
-            self.__process_telemetry_packet(packet)
+            with open(packet, 'rb') as packet_file:
+                packet_data = packet_file.read()
+
+            self.__process_telemetry_packet(packet_data)
 
     def __process_telemetry_packet(self, packet):
-        with open(packet, 'rb') as packet_file:
-            packet_data = packet_file.read()
-            if len(packet_data) == 1347:
-                self.__dispatch(ParticipantPacket(packet_data))
-            elif len(packet_data) == 1028:
-                self.__dispatch(AdditionalParticipantPacket(
-                    packet_data))
-            elif len(packet_data) == 1367:
-                self.__dispatch(TelemetryDataPacket(packet_data))
+        if len(packet) == 1347:
+            self.__dispatch(ParticipantPacket(packet))
+        elif len(packet) == 1028:
+            self.__dispatch(AdditionalParticipantPacket(
+                packet))
+        elif len(packet) == 1367:
+            self.__dispatch(TelemetryDataPacket(packet))
+
+        fp = open('output.json', 'w')
+        json.dump(self.participant_data.json_output,
+            fp,
+            ensure_ascii=True,
+            sort_keys=True)
 
     def __dispatch(self, packet):
         self.participant_data.add(packet)
@@ -134,9 +142,3 @@ if __name__ == "__main__":
     MARSHAL_REPORT = MarshalReport(
         telemetry=ARGUMENTS.telemetry,
         save=ARGUMENTS.save_packets)
-    fp = open('output.json', 'w')
-    import json
-    json.dump(MARSHAL_REPORT.participant_data.json_output,
-        fp,
-        ensure_ascii=True,
-        sort_keys=True)
