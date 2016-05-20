@@ -38,22 +38,13 @@ class Participant():
                     'position': race_position,
                     'sector': "Start",
                     'invalid': None})
-            elif time == -123.0 and len(self.sector_times) == 1:
+            elif time == -123.0 and len(self.sector_times) >= 1:
                 pass
-            elif time == -123.0 and len(self.sector_times) > 1:
-                self.sector_times = list()
-                self.__last_sector = None
-                self.sector_times.append({
-                    'time': 0.00,
-                    'position': race_position,
-                    'sector': "Start",
-                    'invalid': None})
             else:
                 if current_sector != self.__last_sector:
                     self.__last_sector = current_sector
-                    if current_sector == 1 or current_sector == "Start":
-                        current_sector = 3
-                    current_sector = 3 if current_sector == 1 else current_sector-1
+                    current_sector = 3 if current_sector == 1 \
+                        else current_sector-1
                     self.sector_times.append({
                         'time': time,
                         'position': race_position,
@@ -364,7 +355,8 @@ class ParticipantData():
             else:
                 target_participant = self._participants_history[-1][index]
 
-            target_participant.merge(participant)
+            participant.merge(target_participant)
+            #target_participant.merge(participant)
             combined_participants.append(target_participant)
 
         self.__participant_change = False
