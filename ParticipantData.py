@@ -15,9 +15,19 @@ class Participant():
         self.race_positions = list()
         self.sector_times = list()
 
+        self._position = None
+
         self.__last_sector = None
         self.__add_position = False
         self.__add_starting_position = True
+
+    @property
+    def position(self):
+        return self._position
+
+    @position.setter
+    def position(self, new_position):
+        self._position = new_position
 
     def add_race_position(self, lap_number, race_position):
         self.race_position = race_position
@@ -157,6 +167,7 @@ class ParticipantData():
         try:
             for index, participant in enumerate(
                     packet.participant_info[:self.num_participants]):
+                self.participants[index].position = participant.race_position
                 self.participants[index].add_sector_time(
                     participant.last_sector_time,
                     participant.sector,
@@ -240,6 +251,7 @@ class ParticipantData():
         for participant in self.participants_by_name():
             participant_data = dict()
             participant_data['driver'] = participant.name
+            participant_data['position'] = participant.position
 
             try:
                 participant_data['best_sector_1'] = min(

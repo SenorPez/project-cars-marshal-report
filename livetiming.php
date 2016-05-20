@@ -66,19 +66,7 @@ function drivers_by_position($drivers) {
 }
 
 function compare_position($a, $b) {
-    $lap_a = end($a->laps);
-
-    if ($lap_a->position == NULL) {
-        $lap_a = prev($a->laps);
-    }
-
-    $lap_b = end($b->laps);
-
-    if ($lap_b->position == NULL) {
-        $lap_b = prev($b->laps);
-    }
-
-    return ($lap_a->position < $lap_b->position) ? -1 : 1;
+    return ($a->position < $b->position) ? -1 : 1;
 }
 
 ?>
