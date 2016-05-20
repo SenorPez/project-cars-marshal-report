@@ -6,9 +6,11 @@ import datetime
 from glob import glob
 import json
 import os
+import os.path
 import socket
 
 from natsort import natsorted
+from tqdm import tqdm
 
 from AdditionalParticipantPacket import AdditionalParticipantPacket
 from ParticipantData import ParticipantData
@@ -79,11 +81,15 @@ class MarshalReport():
         return 5606
 
     def __process_telemetry_directory(self, telemetry_directory):
-        for packet in natsorted(glob(telemetry_directory+'/pdata*')):
-            with open(packet, 'rb') as packet_file:
-                packet_data = packet_file.read()
+        with tqdm(desc="Processing telemetry", 
+                total=len([x for x in os.listdir(
+                    telemetry_directory)])) as progress_bar:
+            for packet in natsorted(glob(telemetry_directory+'/pdata*')):
+                with open(packet, 'rb') as packet_file:
+                    packet_data = packet_file.read()
 
-            self.__process_telemetry_packet(packet_data)
+                self.__process_telemetry_packet(packet_data)
+                progress_bar.update()
 
     def __process_telemetry_packet(self, packet):
         if len(packet) == 1347:
