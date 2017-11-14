@@ -17,4 +17,4 @@ for a in natsorted(glob(sys.argv[1]+'pdata*')):
         print(a)
         packet_data = packet_file.read()
         SOCKET.sendto(packet_data, (UDP_IP, UDP_PORT))
-        sleep(1/20)
+        #sleep(1/100)
